@@ -1,0 +1,600 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SQL月度分表工具</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f5f5f5; padding: 20px; min-height: 100vh; }
+        .container { max-width: 1400px; margin: 0 auto; }
+        h1 { text-align: center; color: #333; margin-bottom: 30px; font-size: 24px; }
+        .card { background: white; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); padding: 20px; margin-bottom: 20px; }
+        .card-title { font-size: 16px; font-weight: 600; color: #333; margin-bottom: 15px; display: flex; align-items: center; gap: 8px; }
+        .card-title::before { content: ''; width: 4px; height: 16px; background: #e67e22; border-radius: 2px; }
+        textarea { width: 100%; height: 180px; padding: 12px; border: 1px solid #ddd; border-radius: 6px; font-family: 'Consolas', monospace; font-size: 13px; resize: vertical; }
+        textarea:focus { outline: none; border-color: #e67e22; }
+        .form-row { display: flex; gap: 20px; margin-bottom: 15px; flex-wrap: wrap; }
+        .form-group { flex: 1; min-width: 150px; }
+        .form-group label { display: block; margin-bottom: 8px; font-weight: 500; color: #495057; }
+        .form-group input { width: 100%; padding: 10px 12px; border: 1px solid #ced4da; border-radius: 6px; font-size: 14px; }
+        .form-group input:focus { outline: none; border-color: #e67e22; }
+        .month-input-group { display: flex; align-items: center; border: 1px solid #ced4da; border-radius: 6px; overflow: hidden; width: 200px; }
+        .month-input-group input { border: none; border-radius: 0; width: 140px; }
+        .month-input-group .btn-adjust { padding: 10px 12px; background: #e9ecef; border: none; cursor: pointer; font-size: 14px; color: #495057; }
+        .month-input-group .btn-adjust:hover { background: #dee2e6; }
+        .btn-group { display: flex; gap: 10px; margin-top: 15px; flex-wrap: wrap; }
+        .btn { padding: 10px 20px; border: none; border-radius: 6px; font-size: 14px; cursor: pointer; transition: all 0.2s; }
+        .btn-primary { background: #e67e22; color: white; }
+        .btn-primary:hover { background: #d35400; }
+        .btn-success { background: #27ae60; color: white; }
+        .btn-success:hover { background: #219a52; }
+        .btn-secondary { background: #6c757d; color: white; }
+        .result-tabs { display: flex; gap: 5px; margin-bottom: 15px; flex-wrap: wrap; }
+        .result-tab { padding: 8px 16px; background: #e9ecef; border: none; border-radius: 6px 6px 0 0; cursor: pointer; font-size: 14px; }
+        .result-tab.active { background: #e67e22; color: white; }
+        .result-content { display: none; }
+        .result-content.active { display: block; }
+        .sql-block { background: #1e1e1e; color: #d4d4d4; padding: 15px; border-radius: 6px; font-family: 'Consolas', monospace; font-size: 13px; line-height: 1.5; overflow-x: auto; white-space: pre-wrap; word-break: break-all; max-height: 500px; overflow-y: auto; }
+        .table-name { color: #4ec9b0; font-weight: bold; }
+        .month-id { color: #ce9178; }
+        .date-range { color: #9cdcfe; }
+        .highlight-box { margin-top: 15px; padding: 12px; background: #fff3cd; border-radius: 6px; font-size: 14px; }
+        .highlight-box .label { font-weight: 600; color: #856404; }
+        .preview-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 15px; margin-top: 15px; }
+        .preview-item { padding: 12px; background: #f8f9fa; border-radius: 6px; border-left: 3px solid #e67e22; }
+        .preview-item .title { font-weight: 600; color: #e67e22; margin-bottom: 8px; }
+        .preview-item .info { font-size: 13px; color: #495057; }
+        .preview-item .info code { background: #e9ecef; padding: 2px 6px; border-radius: 3px; font-family: monospace; }
+        .preview-item .range-badge { display: inline-block; background: #e67e22; color: white; padding: 2px 8px; border-radius: 12px; font-size: 12px; font-weight: 600; margin-bottom: 6px; }
+        .result-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+        .result-header .btn { padding: 6px 12px; font-size: 13px; }
+        .rules-card { background: #f8f9fa; border: 1px solid #e9ecef; border-radius: 6px; padding: 15px; margin-top: 15px; }
+        .rules-columns { display: flex; gap: 20px; }
+        .rules-section { flex: 1; min-width: 0; }
+        .rules-title { font-weight: 600; color: #495057; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; }
+        .rules-title .hint { font-weight: normal; font-size: 12px; color: #6c757d; }
+        .rule-row { display: flex; align-items: center; gap: 10px; padding: 8px 10px; background: white; border-radius: 4px; border: 1px solid #dee2e6; margin-bottom: 6px; }
+        .rule-row .rule-label { min-width: 60px; font-size: 12px; color: #495057; }
+        .rule-row input { padding: 4px 8px; border: 1px solid #ced4da; border-radius: 4px; font-size: 12px; width: 120px; }
+        .rule-row input:focus { outline: none; border-color: #e67e22; }
+        .rule-row .arrow { color: #6c757d; font-weight: bold; }
+        .btn-remove-rule { padding: 4px 8px; background: #dc3545; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 12px; }
+        .btn-remove-rule:hover { background: #c82333; }
+        .ranges-compact { margin-top: 10px; }
+        .range-row { display: flex; align-items: center; gap: 8px; padding: 8px; background: white; border-radius: 4px; border: 1px solid #dee2e6; margin-bottom: 6px; }
+        .range-num { min-width: 24px; height: 24px; background: #e67e22; color: white; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 600; }
+        .range-inputs { display: flex; align-items: center; gap: 8px; flex: 1; }
+        .range-input-group { display: flex; align-items: center; border: 1px solid #ced4da; border-radius: 4px; overflow: hidden; }
+        .range-input-group input { width: 40px; border: none; text-align: center; padding: 4px; font-size: 13px; }
+        .range-input-group input:focus { outline: none; }
+        .btn-adjust { padding: 4px 8px; background: #e9ecef; border: none; cursor: pointer; font-size: 14px; color: #495057; }
+        .btn-adjust:hover { background: #dee2e6; }
+        .range-sep { color: #6c757d; font-weight: 500; }
+        .btn-remove-range { padding: 4px 8px; background: #dc3545; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 14px; }
+        .btn-remove-range:hover { background: #c82333; }
+        .add-rule-btn { margin-top: 10px; }
+        @media (max-width: 768px) { .rules-columns { flex-direction: column; } }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>SQL月度分表工具</h1>
+        
+        <div class="card">
+            <div class="card-title">配置参数</div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>表名前缀（可选）</label>
+                    <input type="text" id="tablePrefix" value="HB_SERVICE_REQUEST" placeholder="如: HB_SERVICE_REQUEST">
+                </div>
+                <div class="form-group">
+                    <label>目标月份</label>
+                    <div class="month-input-group">
+                        <button type="button" class="btn-adjust" onclick="adjustMonth(-1)">-</button>
+                        <input type="month" id="month">
+                        <button type="button" class="btn-adjust" onclick="adjustMonth(1)">+</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="card">
+            <div class="card-title">原始SQL（粘贴需要替换的SQL）</div>
+            <textarea id="inputSql" placeholder="粘贴原始CREATE TABLE语句..." onchange="detectFromSql()"></textarea>
+            
+            <div class="rules-card">
+                <div class="rules-columns">
+                    <div class="rules-section">
+                        <div class="rules-title">
+                            替换规则配置
+                            <span class="hint">自动生成，可修改</span>
+                        </div>
+                        <div id="rulesContainer" class="rules-compact">
+                            <div class="rule-row">
+                                <span class="rule-label">MONTH_ID</span>
+                                <input type="text" class="rule-from" placeholder="自动检测">
+                                <span class="arrow">→</span>
+                                <input type="text" class="rule-to" placeholder="新">
+                                <button type="button" class="btn-remove-rule" onclick="removeRule(this)">×</button>
+                            </div>
+                            <div class="rule-row">
+                                <span class="rule-label">起始日期</span>
+                                <input type="text" class="rule-from" placeholder="自动检测">
+                                <span class="arrow">→</span>
+                                <input type="text" class="rule-to" placeholder="新">
+                                <button type="button" class="btn-remove-rule" onclick="removeRule(this)">×</button>
+                            </div>
+                            <div class="rule-row">
+                                <span class="rule-label">结束日期</span>
+                                <input type="text" class="rule-from" placeholder="自动检测">
+                                <span class="arrow">→</span>
+                                <input type="text" class="rule-to" placeholder="新">
+                                <button type="button" class="btn-remove-rule" onclick="removeRule(this)">×</button>
+                            </div>
+                        </div>
+                        <button type="button" class="btn btn-secondary add-rule-btn" onclick="addRule()">+ 添加规则</button>
+                    </div>
+                    
+                    <div class="rules-section">
+                        <div class="rules-title">
+                            分段日期配置
+                            <span class="hint">每个表的日期范围</span>
+                        </div>
+                        <div id="dateRangesContainer" class="ranges-compact">
+                            <div class="range-row">
+                                <span class="range-num">1</span>
+                                <div class="range-inputs">
+                                    <div class="range-input-group">
+                                        <button type="button" class="btn-adjust" onclick="adjustDay(this, -1)">-</button>
+                                        <input type="number" class="range-from" value="01" min="1" max="31">
+                                        <button type="button" class="btn-adjust" onclick="adjustDay(this, 1)">+</button>
+                                    </div>
+                                    <span class="range-sep">~</span>
+                                    <div class="range-input-group">
+                                        <button type="button" class="btn-adjust" onclick="adjustDay(this, -1)">-</button>
+                                        <input type="number" class="range-to" value="08" min="1" max="31">
+                                        <button type="button" class="btn-adjust" onclick="adjustDay(this, 1)">+</button>
+                                    </div>
+                                </div>
+                                <button type="button" class="btn-remove-range" onclick="removeRange(this)">×</button>
+                            </div>
+                            <div class="range-row">
+                                <span class="range-num">2</span>
+                                <div class="range-inputs">
+                                    <div class="range-input-group">
+                                        <button type="button" class="btn-adjust" onclick="adjustDay(this, -1)">-</button>
+                                        <input type="number" class="range-from" value="09" min="1" max="31">
+                                        <button type="button" class="btn-adjust" onclick="adjustDay(this, 1)">+</button>
+                                    </div>
+                                    <span class="range-sep">~</span>
+                                    <div class="range-input-group">
+                                        <button type="button" class="btn-adjust" onclick="adjustDay(this, -1)">-</button>
+                                        <input type="number" class="range-to" value="17" min="1" max="31">
+                                        <button type="button" class="btn-adjust" onclick="adjustDay(this, 1)">+</button>
+                                    </div>
+                                </div>
+                                <button type="button" class="btn-remove-range" onclick="removeRange(this)">×</button>
+                            </div>
+                            <div class="range-row">
+                                <span class="range-num">3</span>
+                                <div class="range-inputs">
+                                    <div class="range-input-group">
+                                        <button type="button" class="btn-adjust" onclick="adjustDay(this, -1)">-</button>
+                                        <input type="number" class="range-from" value="18" min="1" max="31">
+                                        <button type="button" class="btn-adjust" onclick="adjustDay(this, 1)">+</button>
+                                    </div>
+                                    <span class="range-sep">~</span>
+                                    <div class="range-input-group">
+                                        <button type="button" class="btn-adjust" onclick="adjustDay(this, -1)">-</button>
+                                        <input type="number" class="range-to" value="25" min="1" max="31">
+                                        <button type="button" class="btn-adjust" onclick="adjustDay(this, 1)">+</button>
+                                    </div>
+                                </div>
+                                <button type="button" class="btn-remove-range" onclick="removeRange(this)">×</button>
+                            </div>
+                            <div class="range-row">
+                                <span class="range-num">4</span>
+                                <div class="range-inputs">
+                                    <div class="range-input-group">
+                                        <button type="button" class="btn-adjust" onclick="adjustDay(this, -1)">-</button>
+                                        <input type="number" class="range-from" value="26" min="1" max="31">
+                                        <button type="button" class="btn-adjust" onclick="adjustDay(this, 1)">+</button>
+                                    </div>
+                                    <span class="range-sep">~</span>
+                                    <div class="range-input-group">
+                                        <button type="button" class="btn-adjust" onclick="adjustDay(this, -1)">-</button>
+                                        <input type="number" class="range-to" value="31" min="1" max="31">
+                                        <button type="button" class="btn-adjust" onclick="adjustDay(this, 1)">+</button>
+                                    </div>
+                                </div>
+                                <button type="button" class="btn-remove-range" onclick="removeRange(this)">×</button>
+                            </div>
+                        </div>
+                        <button type="button" class="btn btn-secondary add-rule-btn" onclick="addRange()">+ 添加分段</button>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="btn-group">
+                <button class="btn btn-primary" onclick="generate()">生成SQL</button>
+                <button class="btn btn-success" onclick="copyAll()">复制全部</button>
+            </div>
+            
+            <div class="highlight-box" id="previewBox" style="display:none;">
+                <span class="label">将生成以下表：</span>
+                <div class="preview-list" id="previewList"></div>
+            </div>
+        </div>
+        
+        <div class="card" id="resultCard" style="display:none;">
+            <div class="card-title">生成结果</div>
+            <div class="result-tabs" id="resultTabs"></div>
+            <div class="result-contents" id="resultContents"></div>
+        </div>
+    </div>
+
+    <script>
+        window.onload = function() {
+            const now = new Date();
+            const currentMonth = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0');
+            document.getElementById('month').value = currentMonth;
+        };
+        
+        function adjustMonth(delta) {
+            const input = document.getElementById('month');
+            if (!input.value) {
+                const now = new Date();
+                input.value = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0');
+            }
+            const [year, month] = input.value.split('-').map(Number);
+            let newMonth = month + delta;
+            let newYear = year;
+            if (newMonth < 1) { newMonth = 12; newYear--; }
+            if (newMonth > 12) { newMonth = 1; newYear++; }
+            input.value = newYear + '-' + String(newMonth).padStart(2, '0');
+        }
+        
+        function adjustDay(btn, delta) {
+            const input = btn.parentElement.querySelector('input');
+            let val = parseInt(input.value) + delta;
+            if (val < 1) val = 31;
+            if (val > 31) val = 1;
+            input.value = String(val).padStart(2, '0');
+        }
+        
+        function removeRange(btn) {
+            const container = document.getElementById('dateRangesContainer');
+            if (container.querySelectorAll('.range-row').length > 1) {
+                btn.parentElement.remove();
+                updateRangeNumbers();
+            }
+        }
+        
+        function addRange() {
+            const container = document.getElementById('dateRangesContainer');
+            const count = container.querySelectorAll('.range-row').length + 1;
+            const div = document.createElement('div');
+            div.className = 'range-row';
+            div.innerHTML = `
+                <span class="range-num">${count}</span>
+                <div class="range-inputs">
+                    <div class="range-input-group">
+                        <button type="button" class="btn-adjust" onclick="adjustDay(this, -1)">-</button>
+                        <input type="number" class="range-from" value="01" min="1" max="31">
+                        <button type="button" class="btn-adjust" onclick="adjustDay(this, 1)">+</button>
+                    </div>
+                    <span class="range-sep">~</span>
+                    <div class="range-input-group">
+                        <button type="button" class="btn-adjust" onclick="adjustDay(this, -1)">-</button>
+                        <input type="number" class="range-to" value="08" min="1" max="31">
+                        <button type="button" class="btn-adjust" onclick="adjustDay(this, 1)">+</button>
+                    </div>
+                </div>
+                <button type="button" class="btn-remove-range" onclick="removeRange(this)">×</button>
+            `;
+            container.appendChild(div);
+        }
+        
+        function updateRangeNumbers() {
+            document.querySelectorAll('.range-row').forEach((row, i) => {
+                row.querySelector('.range-num').textContent = i + 1;
+            });
+        }
+        
+        function getRules() {
+            const rules = [];
+            document.querySelectorAll('#rulesContainer .rule-row').forEach(row => {
+                const from = row.querySelector('.rule-from').value;
+                const to = row.querySelector('.rule-to').value;
+                if (from) {
+                    rules.push({ from, to });
+                }
+            });
+            return rules;
+        }
+        
+        function getDateRanges() {
+            const ranges = [];
+            document.querySelectorAll('.range-row').forEach(row => {
+                const from = row.querySelector('.range-from').value;
+                const to = row.querySelector('.range-to').value;
+                if (from && to) {
+                    ranges.push({ 
+                        name: from.padStart(2, '0') + '_' + to.padStart(2, '0'), 
+                        startDate: from.padStart(2, '0'), 
+                        endDate: to.padStart(2, '0') 
+                    });
+                }
+            });
+            return ranges.length > 0 ? ranges : [
+                { name: '01_08', startDate: '01', endDate: '08' },
+                { name: '09_17', startDate: '09', endDate: '17' },
+                { name: '18_25', startDate: '18', endDate: '25' },
+                { name: '26_31', startDate: '26', endDate: '31' }
+            ];
+        }
+        
+        function addRule() {
+            const container = document.getElementById('rulesContainer');
+            const div = document.createElement('div');
+            div.className = 'rule-row';
+            div.innerHTML = `
+                <span class="rule-label">自定义</span>
+                <input type="text" class="rule-from" placeholder="原字符">
+                <span class="arrow">→</span>
+                <input type="text" class="rule-to" placeholder="替换为">
+                <button type="button" class="btn-remove-rule" onclick="removeRule(this)">×</button>
+            `;
+            container.appendChild(div);
+        }
+        
+        function removeRule(btn) {
+            const container = document.getElementById('rulesContainer');
+            if (container.querySelectorAll('.rule-row').length > 1) {
+                btn.parentElement.remove();
+            }
+        }
+        
+        function detectFromSql() {
+            const inputSql = document.getElementById('inputSql').value;
+            if (!inputSql) return;
+            
+            const monthMatch = inputSql.match(/MONTH_ID\s*=\s*['"]?(\d{6})/i);
+            const dateFieldMatch = inputSql.match(/(\w+)\s*>=\s*['"]?(\d{4}-\d{2}-\d{2})/i);
+            const dateField = dateFieldMatch ? dateFieldMatch[1] : 'CREATE_TIME';
+            
+            const startDateMatch = inputSql.match(new RegExp(dateField + '\\s*>=\\s*[\'"]?(\\d{4}-\\d{2}-\\d{2})', 'i'));
+            const endDateMatch = inputSql.match(new RegExp(dateField + '\\s*<=\\s*[\'"]?(\\d{4}-\\d{2}-\\d{2})', 'i'));
+            
+            const rulesContainer = document.getElementById('rulesContainer');
+            const ruleRows = rulesContainer.querySelectorAll('.rule-row');
+            
+            ruleRows.forEach(row => {
+                const fromInput = row.querySelector('.rule-from');
+                const label = row.querySelector('.rule-label').textContent;
+                
+                if (label === 'MONTH_ID' && monthMatch && !fromInput.value) {
+                    fromInput.value = monthMatch[1];
+                } else if (label === '起始日期' && startDateMatch && !fromInput.value) {
+                    fromInput.value = startDateMatch[1] + ' 00:00:00';
+                } else if (label === '结束日期' && endDateMatch && !fromInput.value) {
+                    fromInput.value = endDateMatch[1] + ' 23:59:59';
+                }
+            });
+        }
+        
+        function generate() {
+            const tablePrefix = document.getElementById('tablePrefix').value || '';
+            const targetMonth = document.getElementById('month').value;
+            const inputSql = document.getElementById('inputSql').value;
+            
+            if (!targetMonth) {
+                alert('请选择目标月份');
+                return;
+            }
+            
+            const targetYear = targetMonth.split('-')[0];
+            const targetMonthOnly = targetMonth.split('-')[1];
+            const targetMonthId = targetYear + targetMonthOnly;
+            
+            let detectedMonthId = '';
+            let detectedStartDate = '';
+            let detectedEndDate = '';
+            
+            if (inputSql) {
+                const monthMatch = inputSql.match(/MONTH_ID\s*=\s*['"]?(\d{6})/i);
+                const dateFieldMatch = inputSql.match(/(\w+)\s*>=\s*['"]?(\d{4}-\d{2}-\d{2})/i);
+                const dateField = dateFieldMatch ? dateFieldMatch[1] : 'CREATE_TIME';
+                
+                if (monthMatch) {
+                    detectedMonthId = monthMatch[1];
+                }
+                
+                const startDateMatch = inputSql.match(new RegExp(dateField + '\\s*>=\\s*[\'"]?(\\d{4}-\\d{2}-\\d{2})', 'i'));
+                if (startDateMatch) {
+                    detectedStartDate = startDateMatch[1] + ' 00:00:00';
+                }
+                
+                const endDateMatch = inputSql.match(new RegExp(dateField + '\\s*<=\\s*[\'"]?(\\d{4}-\\d{2}-\\d{2})', 'i'));
+                if (endDateMatch) {
+                    detectedEndDate = endDateMatch[1] + ' 23:59:59';
+                }
+            }
+            
+            const rulesContainer = document.getElementById('rulesContainer');
+            const ruleRows = rulesContainer.querySelectorAll('.rule-row');
+            
+            ruleRows.forEach(row => {
+                const fromInput = row.querySelector('.rule-from');
+                const toInput = row.querySelector('.rule-to');
+                const label = row.querySelector('.rule-label').textContent;
+                const fromValue = fromInput.value;
+                const currentToValue = toInput.value;
+                
+                if (label === 'MONTH_ID') {
+                    if (detectedMonthId && !fromValue) {
+                        fromInput.value = detectedMonthId;
+                    }
+                    if (fromInput.value && !currentToValue) {
+                        toInput.value = targetMonthId;
+                    }
+                } else if (label === '起始日期') {
+                    if (detectedStartDate && !fromValue) {
+                        fromInput.value = detectedStartDate;
+                    }
+                    if (fromInput.value && !currentToValue) {
+                        toInput.value = targetYear + '-' + targetMonthOnly + '-01 00:00:00';
+                    }
+                } else if (label === '结束日期') {
+                    if (detectedEndDate && !fromValue) {
+                        fromInput.value = detectedEndDate;
+                    }
+                    if (fromInput.value && !currentToValue) {
+                        toInput.value = targetYear + '-' + targetMonthOnly + '-08 23:59:59';
+                    }
+                }
+            });
+            
+            const rules = getRules();
+            const dateRanges = getDateRanges();
+            const firstRange = dateRanges[0];
+            
+            const previewList = document.getElementById('previewList');
+            const previewBox = document.getElementById('previewBox');
+            const resultCard = document.getElementById('resultCard');
+            const resultTabs = document.getElementById('resultTabs');
+            const resultContents = document.getElementById('resultContents');
+            
+            previewList.innerHTML = '';
+            
+            const results = dateRanges.map((range, index) => {
+                const tableName = tablePrefix ? `${tablePrefix}_${targetMonthId}_${range.name}` : `TABLE_${targetMonthId}_${range.name}`;
+                const startDateTime = targetYear + '-' + targetMonthOnly + '-' + range.startDate + ' 00:00:00';
+                const endDateTime = targetYear + '-' + targetMonthOnly + '-' + range.endDate + ' 23:59:59';
+                
+                let sql = '';
+                if (inputSql) {
+                    sql = inputSql;
+                    
+                    if (tablePrefix) {
+                        sql = sql.replace(new RegExp(tablePrefix + '_\\d{6}_\\d{2}_\\d{2}', 'g'), tableName);
+                    }
+                    
+                    const monthMatch = sql.match(/MONTH_ID\s*=\s*['"]?(\d{6})/i);
+                    if (monthMatch) {
+                        sql = sql.replace(new RegExp(monthMatch[1], 'g'), targetMonthId);
+                    }
+                    
+                    const dateFieldMatch = sql.match(/(\w+)\s*>=\s*['"]?(\d{4}-\d{2}-\d{2})/i);
+                    const dateField = dateFieldMatch ? dateFieldMatch[1] : 'CREATE_TIME';
+                    
+                    const oldStartDate = sql.match(new RegExp(dateField + '\\s*>=\\s*[\'"]?(\\d{4}-\\d{2}-\\d{2}\\s+\\d{2}:\\d{2}:\\d{2})', 'i'));
+                    if (oldStartDate) {
+                        sql = sql.replace(new RegExp(escapeRegex(oldStartDate[1]), 'g'), startDateTime);
+                    }
+                    
+                    const oldEndDate = sql.match(new RegExp(dateField + '\\s*<=\\s*[\'"]?(\\d{4}-\\d{2}-\\d{2}\\s+\\d{2}:\\d{2}:\\d{2})', 'i'));
+                    if (oldEndDate) {
+                        sql = sql.replace(new RegExp(escapeRegex(oldEndDate[1]), 'g'), endDateTime);
+                    }
+                } else {
+                    sql = `CREATE TABLE selfhelp.${tableName} AS\nSELECT ...\nWHERE \n    MONTH_ID = '${targetMonthId}'\n    AND CREATE_TIME >= '${startDateTime}'\n    AND CREATE_TIME <= '${endDateTime}'`;
+                }
+                
+                previewList.innerHTML += `
+                    <div class="preview-item">
+                        <div class="title">表 ${index + 1}: ${tableName}</div>
+                        <div class="info">
+                            <span class="range-badge">${range.name}</span>
+                            MONTH_ID: <code>${targetMonthId}</code><br>
+                            日期: <code>${range.startDate}日 ~ ${range.endDate}日</code>
+                        </div>
+                    </div>
+                `;
+                
+                return { tableName, startDateTime, endDateTime, sql };
+            });
+            
+            previewBox.style.display = 'block';
+            resultCard.style.display = 'block';
+            
+            resultTabs.innerHTML = results.map((r, i) => 
+                `<button class="result-tab ${i === 0 ? 'active' : ''}" onclick="showTab(${i})">${r.tableName}</button>`
+            ).join('');
+            
+            resultContents.innerHTML = results.map((r, i) => 
+                `<div class="result-content ${i === 0 ? 'active' : ''}" id="result-${i}">
+                    <div class="result-header">
+                        <strong>${r.tableName}</strong>
+                        <button class="btn btn-success" onclick="copySingle(${i})">复制此SQL</button>
+                    </div>
+                    ${highlightSql(r.sql, r.tableName, targetMonthId, r.startDateTime, r.endDateTime)}
+                </div>`
+            ).join('');
+            
+            window.generatedResults = results;
+        }
+        
+        function escapeRegex(string) {
+            return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        }
+        
+        function escapeHtml(text) {
+            return text.replace(/&/g, '&amp;')
+                       .replace(/</g, '&lt;')
+                       .replace(/>/g, '&gt;')
+                       .replace(/"/g, '&quot;')
+                       .replace(/'/g, '&#039;');
+        }
+        
+        function highlightSql(sql, tableName, month, startDate, endDate) {
+            let highlighted = escapeHtml(sql);
+            highlighted = highlighted.replace(new RegExp(escapeRegex(tableName), 'g'), `<span class="table-name">${tableName}</span>`);
+            highlighted = highlighted.replace(new RegExp(escapeRegex(month), 'g'), `<span class="month-id">${month}</span>`);
+            highlighted = highlighted.replace(new RegExp(escapeRegex(startDate), 'g'), `<span class="date-range">${startDate}</span>`);
+            highlighted = highlighted.replace(new RegExp(escapeRegex(endDate), 'g'), `<span class="date-range">${endDate}</span>`);
+            return `<div class="sql-block">${highlighted}</div>`;
+        }
+        
+        function showTab(index) {
+            document.querySelectorAll('.result-tab').forEach((tab, i) => {
+                tab.classList.toggle('active', i === index);
+            });
+            document.querySelectorAll('.result-content').forEach((content, i) => {
+                content.classList.toggle('active', i === index);
+            });
+        }
+        
+        function copySingle(index) {
+            if (!window.generatedResults || !window.generatedResults[index]) {
+                alert('请先点击"生成SQL"按钮');
+                return;
+            }
+            const sql = window.generatedResults[index].sql;
+            navigator.clipboard.writeText(sql).then(() => {
+                alert('已复制SQL到剪贴板');
+            }).catch(() => {
+                alert('复制失败');
+            });
+        }
+        
+        function copyAll() {
+            if (!window.generatedResults) {
+                alert('请先点击"生成SQL"按钮');
+                return;
+            }
+            
+            const results = window.generatedResults.map(r => 
+                `-- ${r.tableName}\n${r.sql}`
+            ).join('\n\n\n');
+            
+            navigator.clipboard.writeText(results).then(() => {
+                alert('已复制全部SQL到剪贴板');
+            }).catch(() => {
+                alert('复制失败，请手动复制');
+            });
+        }
+    </script>
+</body>
+</html>
